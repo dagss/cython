@@ -36,6 +36,9 @@ class UtilityCode(object):
         self.specialize_list = []
         self.proto_block = proto_block
 
+    def inject_tree_and_scope_into(self, module_node):
+        pass
+    
     def specialize(self, pyrex_type=None, **data):
         # Dicts aren't hashable...
         if pyrex_type is not None:

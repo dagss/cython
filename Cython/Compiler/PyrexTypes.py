@@ -1612,6 +1612,9 @@ class StructUtilityCode(object):
         if self.forward_decl:
             proto.putln(self.type.declaration_code('') + ';')
         proto.putln(self.header + ";")
+
+    def inject_tree_and_scope_into(self, module_node):
+        pass
         
 
 class CStructOrUnionType(CType):
