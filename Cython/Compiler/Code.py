@@ -36,7 +36,7 @@ class UtilityCode(object):
         self.specialize_list = []
         self.proto_block = proto_block
 
-    def inject_tree_and_scope_into(self, module_node):
+    def get_tree(self):
         pass
     
     def specialize(self, pyrex_type=None, **data):
