@@ -23,7 +23,7 @@ class UtilityCode(object):
     # See GlobalState.put_utility_code.
     #
     # hashes/equals by instance
-    
+
     def __init__(self, proto=None, impl=None, init=None, cleanup=None, requires=None,
                  proto_block='utility_code_proto'):
         # proto_block: Which code block to dump prototype in. See GlobalState.
