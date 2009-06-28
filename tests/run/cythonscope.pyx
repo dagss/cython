@@ -16,3 +16,20 @@ def f():
     print cython.view._testscope(4)
     print tester(3)
     print viewtester(3)
+
+def viewobjs():
+    """
+    >>> viewobjs()
+    <strided axis packing mode>
+    <contig axis packing mode>
+    <follow axis packing mode>
+    <direct axis access mode>
+    <ptr axis access mode>
+    <full axis access mode>
+    """
+    print cython.view.strided
+    print cython.view.contig
+    print cython.view.follow
+    print cython.view.direct
+    print cython.view.ptr
+    print cython.view.full
