@@ -99,6 +99,9 @@ def create_pipeline(context, mode):
     from Optimize import DropRefcountingTransform
     from Buffer import IntroduceBufferAuxiliaryVars
     from ModuleNode import check_c_declarations, check_c_declarations_pxd
+    from MemoryView import MemoryViewTransform
+    from ModuleNode import check_c_declarations
+
 
     # Temporary hack that can be used to ensure that all result_code's
     # are generated at code generation time.
@@ -141,6 +144,7 @@ def create_pipeline(context, mode):
         MarkAssignments(context),
         TransformBuiltinMethods(context),
         IntroduceBufferAuxiliaryVars(context),
+        MemoryViewTransform(context),
         _check_c_declarations,
         AnalyseExpressionsTransform(context),
         OptimizeBuiltinCalls(context),
