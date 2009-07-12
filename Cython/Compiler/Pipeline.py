@@ -110,6 +110,9 @@ def create_pipeline(context, mode, exclude_classes=()):
     from Optimize import DropRefcountingTransform
     from Buffer import IntroduceBufferAuxiliaryVars
     from ModuleNode import check_c_declarations, check_c_declarations_pxd
+    from MemoryView import MemoryViewTransform
+    from ModuleNode import check_c_declarations
+
 
     if mode == 'pxd':
         _check_c_declarations = check_c_declarations_pxd
@@ -151,6 +154,7 @@ def create_pipeline(context, mode, exclude_classes=()):
         MarkAssignments(context),
         MarkOverflowingArithmetic(context),
         IntroduceBufferAuxiliaryVars(context),
+        MemoryViewTransform(context),
         _check_c_declarations,
         AnalyseExpressionsTransform(context),
         CreateClosureClasses(context),  ## After all lookups and type inference
