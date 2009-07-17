@@ -99,7 +99,6 @@ def create_pipeline(context, mode):
     from Optimize import DropRefcountingTransform
     from Buffer import IntroduceBufferAuxiliaryVars
     from ModuleNode import check_c_declarations, check_c_declarations_pxd
-    from MemoryView import MemoryViewTransform
     from ModuleNode import check_c_declarations
 
 
@@ -144,7 +143,6 @@ def create_pipeline(context, mode):
         MarkAssignments(context),
         TransformBuiltinMethods(context),
         IntroduceBufferAuxiliaryVars(context),
-        MemoryViewTransform(context),
         _check_c_declarations,
         AnalyseExpressionsTransform(context),
         OptimizeBuiltinCalls(context),
