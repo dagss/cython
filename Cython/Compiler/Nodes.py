@@ -718,7 +718,7 @@ class CSimpleBaseTypeNode(CBaseTypeNode):
         else:
             return PyrexTypes.error_type
 
-class MemoryViewTypeNode(CBaseTypeNode):
+class MemoryViewSliceTypeNode(CBaseTypeNode):
 
     child_attrs = ['base_type_node', 'axes']
 
@@ -736,7 +736,7 @@ class MemoryViewTypeNode(CBaseTypeNode):
             self.type = PyrexTypes.ErrorType()
             return self.type
 
-        self.type = PyrexTypes.MemoryViewType(base_type, axes_specs, env)
+        self.type = PyrexTypes.MemoryViewSliceType(base_type, axes_specs, env)
         MemoryView.use_memview_util_code(env)
         return self.type
 
@@ -831,7 +831,7 @@ class CVarDefNode(StatNode):
         for declarator in self.declarators:
             name_declarator, type = declarator.analyse(base_type, env)
             if not type.is_complete():
-                if not (self.visibility == 'extern' and type.is_array or type.is_memoryview):
+                if not (self.visibility == 'extern' and type.is_array or type.is_memoryviewslice):
                     error(declarator.pos,
                         "Variable type '%s' is incomplete" % type)
             if self.visibility == 'extern' and type.is_pyobject:
@@ -1130,9 +1130,9 @@ class FuncDefNode(StatNode, BlockNode):
         for entry in lenv.var_entries + lenv.arg_entries:
             if entry.type.is_buffer and entry.buffer_aux.buflocal_nd_var.used:
                 Buffer.put_init_vars(entry, code)
-        # ----- Initialise local memoryviews
+        # ----- Initialise local memoryview slices
         for entry in lenv.var_entries + lenv.arg_entries:
-            if entry.type.is_memoryview:
+            if entry.type.is_memoryviewslice:
                 MemoryView.put_init_entry(entry.cname, code)
         # ----- Check and convert arguments
         self.generate_argument_type_tests(code)
