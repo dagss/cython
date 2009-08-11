@@ -193,13 +193,16 @@ cdef extern from *:
 
 cdef class memoryview(object):
 
+    cdef object obj
     cdef Py_buffer view
     cdef int gotbuf_flag
 
     def __cinit__(memoryview self, object obj, int flags):
-        __Pyx_GetBuffer(obj, &self.view, flags)
+        self.obj = obj
+        __Pyx_GetBuffer(self.obj, &self.view, flags)
 
     def __dealloc__(memoryview self):
+        self.obj = None
         __Pyx_ReleaseBuffer(&self.view)
 
 cdef memoryview memoryview_cwrapper(object o, int flags):
@@ -231,7 +234,7 @@ cdef class array:
         Py_ssize_t itemsize
         str mode
 
-    def __cinit__(array self, tuple shape, Py_ssize_t itemsize, char *format, mode="c"):
+    def __cinit__(array self, tuple shape, Py_ssize_t itemsize, char *format, str mode="c"):
 
         self.ndim = len(shape)
         self.itemsize = itemsize
@@ -261,7 +264,7 @@ cdef class array:
             idx += 1
         assert idx == self.ndim
 
-        if mode == "fortran":
+        if mode == "f":
             idx = 0; stride = 1
             for dim in shape:
                 self.strides[idx] = stride
@@ -280,7 +283,7 @@ cdef class array:
             assert idx == -1
             self.len = stride * self.itemsize
         else:
-            raise ValueError("Invalid mode, expected 'c' or 'fortran', got %s" % mode)
+            raise ValueError("Invalid mode, expected 'c' or 'f', got %s" % mode)
 
         self.mode = mode
 
@@ -293,7 +296,7 @@ cdef class array:
         cdef int bufmode = -1
         if self.mode == b"c":
             bufmode = PyBUF_C_CONTIGUOUS | PyBUF_ANY_CONTIGUOUS
-        elif self.mode == b"fortran":
+        elif self.mode == b"f":
             bufmode = PyBUF_F_CONTIGUOUS | PyBUF_ANY_CONTIGUOUS
         if not (flags & bufmode):
             raise ValueError("Can only create a buffer that is contiguous in memory.")
@@ -326,7 +329,7 @@ cdef class array:
         self.format = NULL
         self.itemsize = 0
 
-cdef array array_cwrapper(tuple shape, Py_ssize_t itemsize, char *format, char mode):
+cdef array array_cwrapper(tuple shape, Py_ssize_t itemsize, char *format, char *mode):
     return array(shape, itemsize, format, mode)
 
 ''', prefix=cyarray_prefix)
