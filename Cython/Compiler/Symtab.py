@@ -564,7 +564,7 @@ class Scope(object):
                           api = 0, in_pxd = 0, modifiers = (), utility_code = None):
         # Add an entry for a C function.
         if not cname:
-            if api or visibility != 'private':
+            if visibility != 'private':
                 cname = name
             else:
                 cname = self.mangle(Naming.func_prefix, name)

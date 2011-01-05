@@ -189,7 +189,7 @@ class ModuleNode(Nodes.Node, Nodes.BlockNode):
                 h_code.putln("")
                 for entry in api_funcs:
                     type = CPtrType(entry.type)
-                    h_code.putln("static %s;" % type.declaration_code(entry.cname))
+                    h_code.putln("static %s;" % type.declaration_code(entry.name))
             h_code.putln("")
             h_code.put_h_guard(Naming.api_func_guard + "import_module")
             h_code.put(import_module_utility_code.impl)
@@ -211,7 +211,7 @@ class ModuleNode(Nodes.Node, Nodes.BlockNode):
                 h_code.putln(
                     'if (__Pyx_ImportFunction(module, "%s", (void (**)(void))&%s, "%s") < 0) goto bad;' % (
                         entry.name,
-                        entry.cname,
+                        entry.name,
                         sig))
             h_code.putln("Py_DECREF(module); module = 0;")
             for entry in public_extension_types:
