@@ -4873,11 +4873,36 @@ class FromImportStatNode(StatNode):
 utility_function_predeclarations = \
 """
 #ifdef __GNUC__
-#define INLINE __inline__
+    /* use extensions for GCC */
+    #define INLINE __inline__
+    #define RESTRICT __restrict__
 #elif _WIN32
-#define INLINE __inline
+    /* extensions for ICC and MSVC on Windows */
+    /* TODO: improve these with checks on _MSC_VER */
+    #define INLINE __inline
+    #define RESTRICT __restrict
 #else
-#define INLINE 
+    #ifdef __STDC_VERSION__
+        #if __STDC_VERSION__ >= 199901L
+            /* Standard C99 */
+            #define INLINE inline
+            #define RESTRICT restrict
+        #else
+            /* Standard C89 or C90 */
+            #define INLINE
+            #define RESTRICT
+        #endif
+    #else
+        #ifdef __cplusplus
+            /* C++ */
+            #define INLINE inline
+            #define RESTRICT
+        #else
+            /* Unknown C version or compiler */   
+            #define INLINE
+            #define RESTRICT    
+        #endif
+    #endif
 #endif
 
 typedef struct {PyObject **p; char *s; long n; char is_unicode; char intern; char is_identifier;} __Pyx_StringTabEntry; /*proto*/

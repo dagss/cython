@@ -43,9 +43,11 @@ def c_safe_identifier(cname):
 class BufferAux(object):
     writable_needed = False
     
-    def __init__(self, buffer_info_var, stridevars, shapevars,
+    def __init__(self, buffer_info_var, access_pointer_var, buffer_pointer_var, stridevars, shapevars,
                  suboffsetvars):
         self.buffer_info_var = buffer_info_var
+        self.access_pointer_var = access_pointer_var
+        self.buffer_pointer_var = buffer_pointer_var
         self.stridevars = stridevars
         self.shapevars = shapevars
         self.suboffsetvars = suboffsetvars

@@ -92,7 +92,23 @@ class IntroduceBufferAuxiliaryVars(CythonTransform):
             else:
                 suboffsetvars = None
 
-            entry.buffer_aux = Symtab.BufferAux(bufinfo, stridevars, shapevars, suboffsetvars)
+            ## declare access_pointer and buffer_pointer here
+                
+            restrict = entry.type.restrict
+            readonly = entry.type.readonly
+     
+            access_pointer_type = PyrexTypes.CBufferAccessPtrType(entry.type.dtype, restrict, readonly)
+            cname = scope.mangle(Naming.bufaccess_ptr_prefix, name)
+            access_pointer = scope.declare_var(name="$%s" % cname, cname=cname, type=access_pointer_type, pos=node.pos)
+            if entry.is_arg: access_pointer.used = True
+
+            cname = scope.mangle(Naming.bufbase_ptr_prefix, name)
+            buffer_pointer = scope.declare_var(name="$%s" % cname, cname=cname, type=PyrexTypes.c_char_ptr_type, pos=node.pos)
+            if entry.is_arg: buffer_pointer.used = True
+
+            entry.buffer_aux = Symtab.BufferAux(bufinfo, access_pointer, buffer_pointer, stridevars, shapevars, suboffsetvars)
+
+            ## end of my addition
             
         scope.buffer_entries = bufvars
         self.scope = scope
@@ -110,8 +126,8 @@ class IntroduceBufferAuxiliaryVars(CythonTransform):
 #
 # Analysis
 #
-buffer_options = ("dtype", "ndim", "mode", "negative_indices", "cast") # ordered!
-buffer_defaults = {"ndim": 1, "mode": "full", "negative_indices": True, "cast": False}
+buffer_options = ("dtype", "ndim", "mode", "negative_indices", "cast", "restrict", "readonly") # ordered!
+buffer_defaults = {"ndim": 1, "mode": "full", "negative_indices": True, "cast": False, "restrict" : False, "readonly" : False}
 buffer_positional_options_count = 1 # anything beyond this needs keyword argument
 
 ERR_BUF_OPTION_UNKNOWN = '"%s" is not a buffer option'
@@ -183,7 +199,9 @@ def analyse_buffer_options(globalpos, env, posargs, dictargs, defaults=None, nee
 
     assert_bool('negative_indices')
     assert_bool('cast')
-
+    assert_bool('restrict')
+    assert_bool('readonly')
+    
     return options
     
 
@@ -215,6 +233,8 @@ def used_buffer_aux_vars(entry):
     for s in buffer_aux.stridevars: s.used = True
     if buffer_aux.suboffsetvars:
         for s in buffer_aux.suboffsetvars: s.used = True
+    buffer_aux.access_pointer_var.used = True
+    buffer_aux.buffer_pointer_var.used = True
 
 def put_unpack_buffer_aux_into_scope(buffer_aux, mode, code):
     # Generate code to copy the needed struct info into local
@@ -230,6 +250,10 @@ def put_unpack_buffer_aux_into_scope(buffer_aux, mode, code):
         code.putln(" ".join(["%s = %s.%s[%d];" %
                              (s.cname, bufstruct, field, idx)
                              for idx, s in enumerate(vars)]))
+
+    bufptr = buffer_aux.buffer_pointer_var.cname
+    code.putln("%s = (char *)(%s.buf);" % (bufptr, bufstruct))
+              
 
 def put_acquire_arg_buffer(entry, code, pos):
     code.globalstate.use_utility_code(acquire_utility_code)
@@ -345,6 +369,10 @@ def put_buffer_lookup_code(entry, index_signeds, index_cnames, directives, pos, 
     """
     bufaux = entry.buffer_aux
     bufstruct = bufaux.buffer_info_var.cname
+
+    bufaccess = bufaux.access_pointer_var.cname
+    bufptr = bufaux.buffer_pointer_var.cname
+    
     negative_indices = directives['wraparound'] and entry.type.negative_indices
 
     if directives['boundscheck']:
@@ -386,7 +414,7 @@ def put_buffer_lookup_code(entry, index_signeds, index_cnames, directives, pos, 
     # Create buffer lookup and return it
     # This is done via utility macros/inline functions, which vary
     # according to the access mode used.
-    params = []
+    params = [bufaccess, bufptr]
     nd = entry.type.ndim
     mode = entry.type.mode
     if mode == 'full':
@@ -420,10 +448,9 @@ def put_buffer_lookup_code(entry, index_signeds, index_cnames, directives, pos, 
         funcgen(protocode, defcode, name=funcname, nd=nd)
 
     ptr_type = entry.type.buffer_ptr_type
-    ptrcode = "%s(%s, %s.buf, %s)" % (funcname,
-                                      ptr_type.declaration_code(""),
-                                      bufstruct,
-                                      ", ".join(params))
+    ptrcode = "%s(%s, %s)" % (funcname,
+                              ptr_type.declaration_code(""),
+                              ", ".join(params))
     return ptrcode
 
 
@@ -438,22 +465,23 @@ def use_empty_bufstruct_code(env, max_ndim):
 def buf_lookup_full_code(proto, defin, name, nd):
     """
     Generates a buffer lookup function for the right number
-    of dimensions. The function gives back a void* at the right location.
+    of dimensions. The function gives back a char* at the right location.
     """
     # _i_ndex, _s_tride, sub_o_ffset
     macroargs = ", ".join(["i%d, s%d, o%d" % (i, i, i) for i in range(nd)])
-    proto.putln("#define %s(type, buf, %s) (type)(%s_imp(buf, %s))" % (name, macroargs, name, macroargs))
+    proto.putln("#define %s(type, access, buf, %s) (access=(type)%s_imp(buf, %s), access)" % (name, macroargs, name, macroargs))
 
     funcargs = ", ".join(["Py_ssize_t i%d, Py_ssize_t s%d, Py_ssize_t o%d" % (i, i, i) for i in range(nd)])
-    proto.putln("static INLINE void* %s_imp(void* buf, %s);" % (name, funcargs))
+    proto.putln("static INLINE char *%s_imp(char* buf, %s);" % (name, funcargs))
     defin.putln(dedent("""
-        static INLINE void* %s_imp(void* buf, %s) {
-          char* ptr = (char*)buf;
+        static INLINE char *%s_imp(char* buf, %s) {
+          char *ptr = buf;
         """) % (name, funcargs) + "".join([dedent("""\
           ptr += s%d * i%d;
           if (o%d >= 0) ptr = *((char**)ptr) + o%d; 
         """) % (i, i, i, i) for i in range(nd)]
         ) + "\nreturn ptr;\n}")
+
 
 def buf_lookup_strided_code(proto, defin, name, nd):
     """
@@ -463,7 +491,8 @@ def buf_lookup_strided_code(proto, defin, name, nd):
     # _i_ndex, _s_tride
     args = ", ".join(["i%d, s%d" % (i, i) for i in range(nd)])
     offset = " + ".join(["i%d * s%d" % (i, i) for i in range(nd)])
-    proto.putln("#define %s(type, buf, %s) (type)((char*)buf + %s)" % (name, args, offset))
+    proto.putln("#define %s(type, access, buf, %s) (access = (type)(buf + %s), access)" % (name, args, offset))
+
 
 def buf_lookup_c_code(proto, defin, name, nd):
     """
@@ -472,22 +501,25 @@ def buf_lookup_c_code(proto, defin, name, nd):
     Still we keep the same signature for now.
     """
     if nd == 1:
-        proto.putln("#define %s(type, buf, i0, s0) ((type)buf + i0)" % name)
+        proto.putln("#define %s(type, access, buf, i0, s0) (access = (type)buf, access + i0)" % name)
     else:
         args = ", ".join(["i%d, s%d" % (i, i) for i in range(nd)])
         offset = " + ".join(["i%d * s%d" % (i, i) for i in range(nd - 1)])
-        proto.putln("#define %s(type, buf, %s) ((type)((char*)buf + %s) + i%d)" % (name, args, offset, nd - 1))
+        proto.putln("#define %s(type, access, buf, %s) (access = (type)(buf + %s), access + i%d)" % (name, args, offset, nd - 1))
+
+
 
 def buf_lookup_fortran_code(proto, defin, name, nd):
     """
     Like C lookup, but the first index is optimized instead.
     """
     if nd == 1:
-        proto.putln("#define %s(type, buf, i0, s0) ((type)buf + i0)" % name)
+        proto.putln("#define %s(type, access, buf, i0, s0) (access = (type)buf, access + i0)" % name)
     else:
         args = ", ".join(["i%d, s%d" % (i, i) for i in range(nd)])
         offset = " + ".join(["i%d * s%d" % (i, i) for i in range(1, nd)])
-        proto.putln("#define %s(type, buf, %s) ((type)((char*)buf + %s) + i%d)" % (name, args, offset, 0))
+        proto.putln("#define %s(type, access, buf, %s) (access = (type)(buf + %s), access + i%d)" % (name, args, offset, 0))
+
 
 
 def use_py2_buffer_functions(env):

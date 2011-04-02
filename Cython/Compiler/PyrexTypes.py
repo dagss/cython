@@ -292,7 +292,7 @@ class BufferType(BaseType):
 
     is_buffer = 1
     writable = True
-    def __init__(self, base, dtype, ndim, mode, negative_indices, cast):
+    def __init__(self, base, dtype, ndim, mode, negative_indices, cast, restrict, readonly):
         self.base = base
         self.dtype = dtype
         self.ndim = ndim
@@ -300,6 +300,8 @@ class BufferType(BaseType):
         self.mode = mode
         self.negative_indices = negative_indices
         self.cast = cast
+        self.restrict = restrict
+        self.readonly = readonly
     
     def as_argument_type(self):
         return self
@@ -1058,9 +1060,11 @@ class CPtrType(CType):
     
     is_ptr = 1
     default_value = "0"
+   
     
     def __init__(self, base_type):
         self.base_type = base_type
+        self.ptr_decl = "*"
     
     def __repr__(self):
         return "<CPtrType %s>" % repr(self.base_type)
@@ -1072,9 +1076,9 @@ class CPtrType(CType):
     
     def declaration_code(self, entity_code, 
             for_display = 0, dll_linkage = None, pyrex = 0):
-        #print "CPtrType.declaration_code: pointer to", self.base_type ###
+        #print "CPtrType.declaration_code:", self.ptr_decl
         return self.base_type.declaration_code(
-            "*%s" % entity_code,
+            "%s%s" % (self.ptr_decl, entity_code),
             for_display, dll_linkage, pyrex)
     
     def assignable_from_resolved_type(self, other_type):
@@ -1092,6 +1096,28 @@ class CPtrType(CType):
         if other_type.is_array or other_type.is_ptr:
             return self.base_type.is_void or self.base_type.same_as(other_type.base_type)
         return 0
+
+
+
+class CBufferAccessPtrType(CPtrType):
+
+    def __init__(self, base_type, restrict, readonly):
+        super(CBufferAccessPtrType,self).__init__(base_type)
+        if restrict:
+            # FIXME: we should probably use a macro define for restrict
+            # for C89 and C++ support, maybe even using __restrict__
+            # GNU extension if present in C89 and C++.
+            self.ptr_decl += " RESTRICT "
+            self.restrict = True
+        if readonly:
+            self.ptr_decl = " const " + self.ptr_decl
+            self.readonly = True
+    
+    def __repr__(self):
+        return "<CBufferAccessPtrType %s>" % repr(self.base_type)
+
+
+
 
 
 class CNullPtrType(CPtrType):
