@@ -23,6 +23,9 @@ object_expr = TypedExprNode(py_object_type)
 
 class MarkAssignments(CythonTransform):
 
+    # tells us whether we're in a normal loop
+    in_loop = False
+
     def __init__(self, context):
         super(CythonTransform, self).__init__()
         self.context = context
@@ -109,7 +112,8 @@ class MarkAssignments(CythonTransform):
                 node.pos,
                 base = sequence,
                 index = ExprNodes.IntNode(node.pos, value = '0')))
-        self.visitchildren(node)
+
+        self._visit_loop_node_children(node)
         return node
 
     def visit_ForFromStatNode(self, node):
@@ -120,7 +124,11 @@ class MarkAssignments(CythonTransform):
                                          '+',
                                          node.bound1,
                                          node.step))
-        self.visitchildren(node)
+        self._visit_loop_node_children(node)
+        return node
+
+    def visit_WhileStatNode(self, node):
+        self._visit_loop_node_children(node)
         return node
 
     def visit_ExceptClauseNode(self, node):
@@ -189,20 +197,22 @@ class MarkAssignments(CythonTransform):
         return node
 
     def visit_BreakStatNode(self, node):
-        parnode = self.parallel_block_stack[-1]
-        parnode.break_label_used = True
+        if self.parallel_block_stack:
+            parnode = self.parallel_block_stack[-1]
+            parnode.break_label_used = True
 
-        if not parnode.is_prange and parnode.parent:
-            parnode.parent.break_label_used = True
+            if not parnode.is_prange and parnode.parent:
+                parnode.parent.break_label_used = True
 
         return node
 
     def visit_ContinueStatNode(self, node):
-        parnode = self.parallel_block_stack[-1]
-        parnode.continue_label_used = True
+        if self.parallel_block_stack:
+            parnode = self.parallel_block_stack[-1]
+            parnode.continue_label_used = True
 
-        if not parnode.is_prange and parnode.parent:
-            parnode.parent.continue_label_used = True
+            if not parnode.is_prange and parnode.parent:
+                parnode.parent.continue_label_used = True
 
         return node
 
@@ -218,6 +228,26 @@ class MarkAssignments(CythonTransform):
                 parnode.error_label_used = True
 
         return node
+
+    def _visit_loop_node_children(self, node):
+        """
+        Used for the children of "loop nodes", like ForInStatNode, so subnodes
+        can establish whether break and continue belong to a parallel node
+        or something else.
+        """
+        child_attrs = node.child_attrs
+        node.child_attrs = [attr for attr in child_attrs if attr != 'else_clause']
+
+        was_in_loop = self.in_loop
+        self.in_loop = True
+
+        self.visitchildren(node)
+
+        self.in_loop = was_in_loop
+        node.child_attrs = child_attrs
+
+        if node.else_clause:
+            node.else_clause = self.visit(node.else_clause)
 
 
 class MarkOverflowingArithmetic(CythonTransform):
