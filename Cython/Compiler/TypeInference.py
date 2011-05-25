@@ -113,7 +113,7 @@ class MarkAssignments(CythonTransform):
                 base = sequence,
                 index = ExprNodes.IntNode(node.pos, value = '0')))
 
-        self._visit_loop_node_children(node)
+        self.visitchildren(node)
         return node
 
     def visit_ForFromStatNode(self, node):
@@ -124,11 +124,11 @@ class MarkAssignments(CythonTransform):
                                          '+',
                                          node.bound1,
                                          node.step))
-        self._visit_loop_node_children(node)
+        self.visitchildren(node)
         return node
 
     def visit_WhileStatNode(self, node):
-        self._visit_loop_node_children(node)
+        self.visitchildren(node)
         return node
 
     def visit_ExceptClauseNode(self, node):
@@ -202,25 +202,9 @@ class MarkAssignments(CythonTransform):
 
         return node
 
-    def _visit_loop_node_children(self, node):
-        """
-        Used for the children of "loop nodes", like ForInStatNode, so subnodes
-        can establish whether break and continue belong to a parallel node
-        or something else.
-        """
-        child_attrs = node.child_attrs
-        node.child_attrs = [attr for attr in child_attrs if attr != 'else_clause']
-
-        was_in_loop = self.in_loop
-        self.in_loop = True
-
-        self.visitchildren(node)
-
-        self.in_loop = was_in_loop
-        node.child_attrs = child_attrs
-
-        if node.else_clause:
-            node.else_clause = self.visit(node.else_clause)
+    def visit_ReturnStatNode(self, node):
+        node.in_parallel = bool(self.parallel_block_stack)
+        return node
 
 
 class MarkOverflowingArithmetic(CythonTransform):
