@@ -6265,7 +6265,8 @@ class ParallelWithBlockNode(ParallelStatNode):
         code.put("#pragma omp parallel ")
 
         if self.privates:
-            privates = [e.cname for e in self.privates]
+            privates = [e.cname for e in self.privates
+                                    if not e.type.is_pyobject]
             code.put('private(%s)' % ', '.join(privates))
 
         self.privatization_insertion_point = code.insertion_point()
@@ -6279,6 +6280,9 @@ class ParallelWithBlockNode(ParallelStatNode):
         self.body.generate_execution_code(code)
         self.trap_parallel_exit(code)
         code.end_block() # end parallel block
+
+        # After the parallel block all privates are undefined
+        self.initialize_privates_to_nan(code)
 
         continue_ = code.label_used(code.continue_label)
         break_ = code.label_used(code.break_label)
@@ -6530,7 +6534,9 @@ class ParallelRangeNode(ParallelStatNode):
             else:
                 if entry == self.target.entry:
                     code.put(" firstprivate(%s)" % entry.cname)
-                code.put(" lastprivate(%s)" % entry.cname)
+
+                if not entry.type.is_pyobject:
+                    code.put(" lastprivate(%s)" % entry.cname)
 
         if self.schedule:
             code.put(" schedule(%s)" % self.schedule)
@@ -7618,6 +7624,10 @@ proto="""
   #endif
 #endif
 """)
+
+init_threads = UtilityCode(
+    init="PyEval_InitThreads();\n",
+)
 
 #------------------------------------------------------------------------------------
 
