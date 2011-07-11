@@ -460,7 +460,7 @@ def put_buffer_lookup_code(entry, index_signeds, index_cnames, directives, pos, 
 
 
 def use_bufstruct_declare_code(env):
-    env.use_utility_code(buffer_struct_declare_code, "buffer_struct_declare_code")
+    env.use_utility_code(buffer_struct_declare_code)
 
 def use_empty_bufstruct_code(env, max_ndim):
     code = dedent("""
